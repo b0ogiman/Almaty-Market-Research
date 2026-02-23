@@ -1,10 +1,13 @@
 # AI-Powered Local Market Research Platform – Almaty
 
-MVP backend for local market research and business opportunity identification in Almaty.
+MVP platform for local market research and business opportunity identification in Almaty, Kazakhstan.
+
+Backend: **FastAPI + PostgreSQL + Redis**  
+Frontend: **React 18 + TypeScript + Tailwind CSS**
 
 ## Quick Start
 
-### Local (PostgreSQL + Redis required)
+### Local backend only (PostgreSQL + Redis required)
 
 ```bash
 # Create virtual environment
@@ -24,15 +27,18 @@ python -m scripts.init_db
 uvicorn app.main:app --reload --port 8000
 ```
 
-### Docker
+### Full stack with Docker
 
 ```bash
 docker-compose up -d
-# API: http://localhost:8000
-# Docs: http://localhost:8000/docs
+
+# API:       http://localhost:8000
+# Swagger:   http://localhost:8000/docs
+# OpenAPI:   http://localhost:8000/openapi.json
+# Frontend:  http://localhost:3000
 ```
 
-## API Endpoints
+## API Endpoints (summary)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -45,4 +51,4 @@ docker-compose up -d
 | GET | `/api/v1/recommendations` | Get top recommendations |
 | GET | `/api/v1/health` | Health check |
 
-See `ARCHITECTURE.md` for full design.
+See `ARCHITECTURE.md`, `API_DOCUMENTATION.md`, and `DEPLOYMENT_GUIDE.md` for full details.

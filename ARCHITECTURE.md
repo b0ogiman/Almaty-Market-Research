@@ -42,6 +42,18 @@
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+### 1.1 Frontend Layer (React SPA)
+
+The React 18 + TypeScript frontend provides:
+
+- A dashboard summarizing demand, competition, sentiment, and opportunities.
+- A market analysis form that triggers backend analysis.
+- Charts (Recharts) for demand vs competition and district-level views.
+- Opportunity cards highlighting top-ranked opportunities in Almaty.
+
+The SPA communicates with the FastAPI API via REST (`/api/v1/*`) and is served by nginx
+in production, with nginx proxying `/api/*` to the backend.
+
 ## 2. Data Flow Explanation
 
 ### 2.1 Data Ingestion Flow
