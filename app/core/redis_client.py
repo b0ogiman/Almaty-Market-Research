@@ -75,6 +75,25 @@ async def cache_delete(key: str) -> bool:
     return False
 
 
+async def cache_delete_prefix(prefix: str) -> int:
+    """
+    Delete all cache keys starting with the given prefix.
+
+    Returns the number of deleted keys. If Redis is unavailable, returns 0.
+    """
+    client = await get_redis()
+    if not client:
+        return 0
+    deleted = 0
+    try:
+        async for key in client.scan_iter(match=f"{prefix}*"):
+            await client.delete(key)
+            deleted += 1
+    except Exception as e:
+        logger.debug("Cache delete_prefix error for %s: %s", prefix, str(e))
+    return deleted
+
+
 async def redis_ping() -> bool:
     """Check Redis connectivity."""
     client = await get_redis()

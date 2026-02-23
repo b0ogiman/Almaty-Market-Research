@@ -66,6 +66,20 @@ class Settings(BaseSettings):
     cache_ttl_recommendations: int = 900  # 15 minutes
     cache_enabled: bool = True
 
+    # Data collection
+    google_maps_api_key: Optional[str] = None
+    collection_default_limit: int = 100
+
+    # LLM (OpenAI)
+    openai_api_key: Optional[str] = None
+    openai_model: str = "gpt-4o-mini"
+    openai_max_tokens: int = 1024
+
+    # Scheduler
+    scheduler_enabled: bool = True
+    collection_cron_hour: int = 2
+    collection_cron_minute: int = 0
+
 
 @lru_cache
 def get_settings() -> Settings:

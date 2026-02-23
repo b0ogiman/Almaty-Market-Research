@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.database import Base, engine
-from app.models import MarketData, AnalysisResult, Opportunity, Recommendation
+from app.models import MarketData, BusinessListing, AnalysisResult, Opportunity, Recommendation
 
 
 async def init_db():

@@ -21,7 +21,13 @@ logger = get_logger("main")
 async def lifespan(app: FastAPI):
     """Application lifespan: startup and shutdown."""
     logger.info("Starting %s v%s", settings.app_name, __version__)
+    if settings.scheduler_enabled:
+        from app.jobs.scheduler import start_scheduler, stop_scheduler
+        start_scheduler()
     yield
+    if settings.scheduler_enabled:
+        from app.jobs.scheduler import stop_scheduler
+        stop_scheduler()
     logger.info("Shutting down %s", settings.app_name)
 
 

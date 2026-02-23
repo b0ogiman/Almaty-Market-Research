@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.redis_client import cache_delete_prefix
 from app.models.market_data import MarketData
 from app.schemas.data import DataIngestItem, DataIngestRequest
 from app.logging_config import get_logger
@@ -48,6 +49,16 @@ class DataIngestionService:
             except Exception as e:
                 logger.warning("Ingest item failed: %s", str(e))
                 failed += 1
+        # Invalidate caches if we successfully ingested any items.
+        if ingested > 0:
+            # Market analysis and opportunity scoring both depend on MarketData.
+            # It is safe and simple to invalidate all related cache entries.
+            try:
+                await cache_delete_prefix("analysis:")
+                await cache_delete_prefix("opportunities:")
+            except Exception as e:
+                # Cache invalidation failures should not break ingestion.
+                logger.debug("Cache invalidation failed after ingest: %s", str(e))
 
         return ingested, failed, ids
 

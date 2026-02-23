@@ -9,13 +9,13 @@ from app.core.redis_client import cache_get, cache_set
 from app.exceptions import NotFoundError
 from app.logging_config import get_logger
 from app.models.analysis_result import AnalysisResult
-from app.models.market_data import MarketData
+from app.models.business_listing import BusinessListing
 
 logger = get_logger("services.market_analysis")
 
 
 class MarketAnalysisService:
-    """Orchestrates market analysis: cache, AI engine, persistence."""
+    """Orchestrates market analysis: DB → analytics engine → cache → persistence."""
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -25,45 +25,66 @@ class MarketAnalysisService:
     def _cache_key(self, sector: str | None, district: str | None) -> str:
         return f"analysis:sector={sector or 'all'}:district={district or 'all'}"
 
+    async def _load_listings(
+        self,
+        sector: str | None,
+        district: str | None,
+        limit: int = 1000,
+    ) -> list[dict]:
+        """Load enriched business listings for analysis."""
+        q = select(BusinessListing).where(BusinessListing.is_active == True)
+        if sector:
+            # Sector approximated via normalized category when available.
+            q = q.where(BusinessListing.category_normalized == sector)
+        if district:
+            q = q.where(
+                (BusinessListing.district == district)
+                | (BusinessListing.district_mapped == district)
+            )
+        q = q.order_by(BusinessListing.created_at.desc()).limit(limit)
+        result = await self.db.execute(q)
+        rows = result.scalars().all()
+        return [
+            {
+                "id": str(r.id),
+                "name": r.name,
+                "category": r.category,
+                "category_normalized": r.category_normalized,
+                "district": r.district,
+                "district_mapped": r.district_mapped,
+                "latitude": r.latitude,
+                "longitude": r.longitude,
+                "rating": r.rating,
+                "review_count": r.review_count,
+                "sentiment_score": r.sentiment_score,
+                "created_at": r.created_at,
+            }
+            for r in rows
+        ]
+
     async def analyze(
         self,
         sector: str | None = None,
         district: str | None = None,
         force_refresh: bool = False,
     ) -> AnalysisResult:
-        """Run market analysis. Uses cache when available and not force_refresh."""
+        """Run market analysis. Uses cached AnalysisResult when available."""
         cache_key = self._cache_key(sector, district)
         if not force_refresh and self.settings.cache_enabled:
             cached = await cache_get(cache_key)
             if cached and "id" in cached:
                 from uuid import UUID
+
                 existing = await self.db.get(AnalysisResult, UUID(cached["id"]))
                 if existing:
                     return existing
 
-        # Fetch relevant market data
-        q = select(MarketData).where(MarketData.is_active == True)
-        if sector:
-            q = q.where(MarketData.sector == sector)
-        if district:
-            q = q.where(MarketData.district == district)
-        q = q.limit(500)
-        result = await self.db.execute(q)
-        rows = result.scalars().all()
-        market_data = [
-            {
-                "sector": r.sector,
-                "district": r.district,
-                "metric_name": r.metric_name,
-                "metric_value": r.metric_value,
-            }
-            for r in rows
-        ]
+        listings = await self._load_listings(sector=sector, district=district)
 
         output = await self.engine.analyze(
             sector=sector,
             district=district,
-            market_data=market_data,
+            listings=listings,
         )
         record = AnalysisResult(
             sector=sector or "all",
