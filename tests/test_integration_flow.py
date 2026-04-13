@@ -20,6 +20,15 @@ from app.services.recommendation import RecommendationService
 async def test_end_to_end_pipeline():
     """Full pipeline should run without errors and persist data."""
     settings = get_settings()
+    if not all(
+        [
+            settings.postgres_host,
+            settings.postgres_user,
+            settings.postgres_password,
+            settings.postgres_db,
+        ]
+    ):
+        pytest.skip("PostgreSQL configuration is incomplete; skipping DB integration test.")
 
     async with AsyncSessionLocal() as db:
         # 1. Collect and enrich listings, then commit.

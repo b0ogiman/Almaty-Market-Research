@@ -1,6 +1,6 @@
 """Market analysis API."""
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -23,13 +23,21 @@ async def run_market_analysis(
     Run market analysis for given sector/district.
     Uses cache unless force_refresh=True.
     """
-    service = MarketAnalysisService(db)
-    result = await service.analyze(
-        sector=request.sector,
-        district=request.district,
-        force_refresh=request.force_refresh,
-    )
-    return AnalysisResponse.model_validate(result)
+    try:
+        service = MarketAnalysisService(db)
+        result = await service.analyze(
+            sector=request.sector,
+            district=request.district,
+            force_refresh=request.force_refresh,
+        )
+        return AnalysisResponse.model_validate(result)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error.",
+        )
 
 
 @router.get("", response_model=AnalysisListResponse)
@@ -41,17 +49,25 @@ async def list_analyses(
     db: AsyncSession = Depends(get_db),
 ) -> AnalysisListResponse:
     """List past analysis results with pagination."""
-    service = MarketAnalysisService(db)
-    items, total = await service.list_analyses(
-        sector=sector,
-        district=district,
-        page=page,
-        size=size,
-    )
-    return AnalysisListResponse(
-        success=True,
-        total=total,
-        items=[AnalysisResponse.model_validate(i) for i in items],
-        page=page,
-        size=size,
-    )
+    try:
+        service = MarketAnalysisService(db)
+        items, total = await service.list_analyses(
+            sector=sector,
+            district=district,
+            page=page,
+            size=size,
+        )
+        return AnalysisListResponse(
+            success=True,
+            total=total,
+            items=[AnalysisResponse.model_validate(i) for i in items],
+            page=page,
+            size=size,
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error.",
+        )

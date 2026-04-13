@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.recommendation_engine import RecommendationEngine
 from app.config import get_settings
-from app.core.redis_client import cache_get, cache_set
+from app.core.redis_client import cache_delete_prefix, cache_get, cache_set
 from app.llm.recommendation_service import LLMRecommendationService
 from app.logging_config import get_logger
 from app.models.opportunity import Opportunity
@@ -123,6 +123,10 @@ class RecommendationService:
                 rec_models.append(rec)
 
         if self.settings.cache_enabled and rec_models:
+            # Keep cache invalidation policy consistent across write operations.
+            await cache_delete_prefix("analysis:")
+            await cache_delete_prefix("opportunities:")
+            await cache_delete_prefix("recommendations:")
             await cache_set(
                 cache_key,
                 {"ids": [str(r.id) for r in rec_models]},

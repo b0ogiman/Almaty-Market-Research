@@ -8,7 +8,7 @@ from app.analytics.demand import DemandScorer
 from app.analytics.competition import CompetitionIndex
 from app.analytics.market_gap import MarketGapScorer
 from app.config import get_settings
-from app.core.redis_client import cache_get, cache_set
+from app.core.redis_client import cache_delete_prefix, cache_get, cache_set
 from app.exceptions import NotFoundError
 from app.logging_config import get_logger
 from app.models.business_listing import BusinessListing
@@ -190,6 +190,10 @@ class OpportunityScoringService:
                 opportunities.append(opp)
 
         if self.settings.cache_enabled and opportunities:
+            # New opportunities change downstream recommendation state.
+            await cache_delete_prefix("analysis:")
+            await cache_delete_prefix("opportunities:")
+            await cache_delete_prefix("recommendations:")
             await cache_set(
                 cache_key,
                 {"ids": [str(o.id) for o in opportunities]},

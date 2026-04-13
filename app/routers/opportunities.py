@@ -1,9 +1,10 @@
 """Opportunity scoring and listing API."""
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.security import require_write_api_key
 from app.schemas.opportunity import (
     OpportunityScoreRequest,
     OpportunityResponse,
@@ -17,25 +18,34 @@ router = APIRouter(prefix="/opportunities", tags=["opportunities"])
 @router.post("/score", response_model=OpportunityListResponse)
 async def score_opportunities(
     request: OpportunityScoreRequest,
+    _: None = Depends(require_write_api_key),
     db: AsyncSession = Depends(get_db),
 ) -> OpportunityListResponse:
     """
     Score and rank business opportunities for given sector/district.
     Creates new opportunity records and returns them.
     """
-    service = OpportunityScoringService(db)
-    items = await service.score_opportunities(
-        sector=request.sector,
-        district=request.district,
-        limit=request.limit,
-    )
-    return OpportunityListResponse(
-        success=True,
-        total=len(items),
-        items=[OpportunityResponse.model_validate(i) for i in items],
-        page=1,
-        size=len(items),
-    )
+    try:
+        service = OpportunityScoringService(db)
+        items = await service.score_opportunities(
+            sector=request.sector,
+            district=request.district,
+            limit=request.limit,
+        )
+        return OpportunityListResponse(
+            success=True,
+            total=len(items),
+            items=[OpportunityResponse.model_validate(i) for i in items],
+            page=1,
+            size=len(items),
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error.",
+        )
 
 
 @router.get("", response_model=OpportunityListResponse)
@@ -47,17 +57,25 @@ async def list_opportunities(
     db: AsyncSession = Depends(get_db),
 ) -> OpportunityListResponse:
     """List scored opportunities with pagination."""
-    service = OpportunityScoringService(db)
-    items, total = await service.list_opportunities(
-        sector=sector,
-        district=district,
-        page=page,
-        size=size,
-    )
-    return OpportunityListResponse(
-        success=True,
-        total=total,
-        items=[OpportunityResponse.model_validate(i) for i in items],
-        page=page,
-        size=size,
-    )
+    try:
+        service = OpportunityScoringService(db)
+        items, total = await service.list_opportunities(
+            sector=sector,
+            district=district,
+            page=page,
+            size=size,
+        )
+        return OpportunityListResponse(
+            success=True,
+            total=total,
+            items=[OpportunityResponse.model_validate(i) for i in items],
+            page=page,
+            size=size,
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error.",
+        )

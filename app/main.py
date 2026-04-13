@@ -20,6 +20,11 @@ logger = get_logger("main")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan: startup and shutdown."""
+    if settings.is_production:
+        if settings.write_auth_enabled and not settings.api_key:
+            raise RuntimeError("API key must be configured in production when write auth is enabled.")
+        if not settings.postgres_password:
+            raise RuntimeError("PostgreSQL password must be configured in production.")
     logger.info("Starting %s v%s", settings.app_name, __version__)
     if settings.scheduler_enabled:
         from app.jobs.scheduler import start_scheduler, stop_scheduler
@@ -42,8 +47,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=settings.cors_allowed_origins,
+    allow_credentials=settings.cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

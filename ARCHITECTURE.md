@@ -1,174 +1,94 @@
-# AI-Powered Local Market Research Platform - Architecture
+# System Architecture
 
-## 1. High-Level Architecture
+## 1. Main Processing Flow
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                              API LAYER (FastAPI)                                  │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌────────────┐  │
-│  │ Data Router │ │Analysis Router│ │Opportunity  │ │Recommendation│ │ Health    │  │
-│  │ /api/v1/data│ │/api/v1/analysis│ │Router       │ │ Router       │ │ Router    │  │
-│  └──────┬──────┘ └──────┬──────┘ └──────┬──────┘ └──────┬──────┘ └─────┬──────┘  │
-└─────────┼───────────────┼───────────────┼───────────────┼──────────────┼─────────┘
-          │               │               │               │              │
-          ▼               ▼               ▼               ▼              ▼
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                         BUSINESS LOGIC LAYER (Services)                           │
-│  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐ ┌────────────────┐  │
-│  │ DataIngestion   │ │ MarketAnalysis  │ │ Opportunity     │ │ Recommendation │  │
-│  │ Service         │ │ Service         │ │ ScoringService  │ │ Service        │  │
-│  └────────┬────────┘ └────────┬────────┘ └────────┬────────┘ └───────┬────────┘  │
-└───────────┼───────────────────┼───────────────────┼──────────────────┼───────────┘
-            │                   │                   │                  │
-            ▼                   ▼                   ▼                  ▼
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                            AI LAYER (AI Services - MVP)                           │
-│  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐                     │
-│  │ MarketAnalysis  │ │ Opportunity     │ │ Recommendation  │                     │
-│  │ Engine (stub)   │ │ Scorer (stub)   │ │ Engine (stub)   │                     │
-│  └────────┬────────┘ └────────┬────────┘ └────────┬────────┘                     │
-└───────────┼───────────────────┼───────────────────┼──────────────────────────────┘
-            │                   │                   │
-            ▼                   ▼                   ▼
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                              DATA LAYER                                           │
-│  ┌─────────────────────────────────┐  ┌─────────────────────────────────────┐   │
-│  │ PostgreSQL (SQLAlchemy ORM)      │  │ Redis (Caching - Ready)              │   │
-│  │ - market_data                    │  │ - Analysis cache                     │   │
-│  │ - analysis_results               │  │ - Opportunity cache                  │   │
-│  │ - opportunities                  │  │ - Session/rate limiting              │   │
-│  │ - recommendations                │  │                                       │   │
-│  └─────────────────────────────────┘  └─────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
+Core business flow implemented in the project:
 
-### 1.1 Frontend Layer (React SPA)
+`collect -> enrich -> analyze -> score -> recommend`
 
-The React 18 + TypeScript frontend provides:
+### 1.1 Flow Explanation
 
-- A dashboard summarizing demand, competition, sentiment, and opportunities.
-- A market analysis form that triggers backend analysis.
-- Charts (Recharts) for demand vs competition and district-level views.
-- Opportunity cards highlighting top-ranked opportunities in Almaty.
+1. **Collect**
+   - Source adapters (mock Avito and optional Google Maps) fetch business listings.
+   - Validation and deduplication run before persistence.
+   - Main modules: `app/collectors/*`, `app/jobs/scheduler.py`.
 
-The SPA communicates with the FastAPI API via REST (`/api/v1/*`) and is served by nginx
-in production, with nginx proxying `/api/*` to the backend.
+2. **Enrich**
+   - Listings are enriched with:
+     - mapped district (`district_mapped`)
+     - normalized category (`category_normalized`)
+     - sentiment score (`sentiment_score`)
+   - Main modules: `app/enrichment/*`, integrated in `app/collectors/pipeline.py`.
 
-## 2. Data Flow Explanation
+3. **Analyze**
+   - Analysis uses enriched listings from DB.
+   - Metrics include demand, competition-driven gap score, clustering, and trend detection.
+   - Main modules: `app/services/market_analysis.py`, `app/ai/market_analysis_engine.py`, `app/analytics/*`.
 
-### 2.1 Data Ingestion Flow
-```
-External Data Source → POST /api/v1/data/ingest → DataIngestionService 
-    → Validate & Transform → PostgreSQL (market_data) → Optional Redis cache invalidation
-```
+4. **Score Opportunities**
+   - Opportunities are generated from analytics signals by district/category segment.
+   - Persisted in PostgreSQL and cached with TTL in Redis.
+   - Main modules: `app/services/opportunity_scoring.py`.
 
-### 2.2 Market Analysis Flow
-```
-POST /api/v1/analysis/market → Check Redis cache → Cache miss 
-    → MarketAnalysisService → AI Layer (analysis engine) 
-    → Store in PostgreSQL (analysis_results) → Cache result in Redis → Response
-```
+5. **Recommend**
+   - Recommendations are generated from top opportunities.
+   - Uses LLM when configured; falls back to deterministic heuristic engine.
+   - Main modules: `app/services/recommendation.py`, `app/llm/*`, `app/ai/recommendation_engine.py`.
 
-### 2.3 Opportunity Scoring Flow
-```
-POST /api/v1/opportunities/score → OpportunityScoringService 
-    → Fetch market data → AI Layer (scoring engine) 
-    → Store in PostgreSQL (opportunities) → Optional Redis cache → Response
-```
+## 2. Layered Architecture
 
-### 2.4 Recommendation Flow
-```
-GET /api/v1/recommendations → Check Redis cache → RecommendationService 
-    → AI Layer (recommendation engine) → Aggregate from opportunities 
-    → Return top N recommendations
-```
+- **API Layer (`app/routers`)**
+  - Input validation, auth dependency for write endpoints, safe HTTP responses.
+- **Service Layer (`app/services`)**
+  - Core orchestration, persistence boundaries, cache usage/invalidation.
+- **Analytics Layer (`app/analytics`)**
+  - Reusable metric calculators and clustering/trend logic.
+- **Data Pipeline Layer (`app/collectors`, `app/enrichment`, `app/jobs`)**
+  - Collection jobs and preparation of structured listing data.
+- **AI/LLM Layer (`app/ai`, `app/llm`)**
+  - Domain logic for analysis/recommendation generation with graceful fallback.
+- **Data Layer (`app/models`, `app/database`, `app/core/redis_client.py`)**
+  - PostgreSQL for persistence, Redis for cache.
 
-### 2.5 Health Check Flow
-```
-GET /health → HealthService → Check PostgreSQL connectivity 
-    → Check Redis connectivity → Return status
-```
+## 3. Module Map (Brief)
 
-## 3. Folder Structure
+- `app/main.py`: app bootstrap, CORS, exception handlers, router registration, scheduler lifecycle.
+- `app/config.py`: environment-driven settings (security, DB, Redis, cache, scheduler, LLM).
+- `app/security.py`: API key protection for mutating endpoints.
+- `app/database.py`: async SQLAlchemy session/transaction management.
+- `app/routers/*`: endpoint handlers (`/data`, `/analysis`, `/opportunities`, `/recommendations`, `/health`).
+- `app/services/*`: business use-cases (ingestion, analysis, scoring, recommendation).
+- `app/collectors/*`: source adapters, cleaning, dedup, persistence pipeline.
+- `app/enrichment/*`: district mapper, category normalizer, sentiment scorer.
+- `app/analytics/*`: demand score, competition index, market gap, clustering, trends.
+- `app/llm/*`: OpenAI client, prompts, recommendation/summary services.
+- `app/jobs/scheduler.py`: scheduled collection job and cache invalidation.
+- `tests/*`: unit and API/integration tests for reliability.
 
-```
-almaty-market-research/
-├── app/
-│   ├── __init__.py
-│   ├── main.py                 # FastAPI application entry
-│   ├── config.py               # Configuration management
-│   ├── database.py             # Database connection & session
-│   ├── logging_config.py       # Structured logging
-│   ├── exceptions.py           # Custom exceptions & handlers
-│   │
-│   ├── models/                 # SQLAlchemy ORM models
-│   │   ├── __init__.py
-│   │   ├── base.py
-│   │   ├── market_data.py
-│   │   ├── analysis_result.py
-│   │   ├── opportunity.py
-│   │   └── recommendation.py
-│   │
-│   ├── schemas/                # Pydantic request/response schemas
-│   │   ├── __init__.py
-│   │   ├── data.py
-│   │   ├── analysis.py
-│   │   ├── opportunity.py
-│   │   └── common.py
-│   │
-│   ├── routers/                # API route handlers
-│   │   ├── __init__.py
-│   │   ├── data.py
-│   │   ├── analysis.py
-│   │   ├── opportunities.py
-│   │   ├── recommendations.py
-│   │   └── health.py
-│   │
-│   ├── services/               # Business logic
-│   │   ├── __init__.py
-│   │   ├── data_ingestion.py
-│   │   ├── market_analysis.py
-│   │   ├── opportunity_scoring.py
-│   │   └── recommendation.py
-│   │
-│   └── ai/                     # AI layer (MVP stubs)
-│       ├── __init__.py
-│       ├── market_analysis_engine.py
-│       ├── opportunity_scorer.py
-│       └── recommendation_engine.py
-│
-├── alembic/                    # Database migrations (optional)
-├── tests/
-│   └── __init__.py
-├── requirements.txt
-├── Dockerfile
-├── docker-compose.yml
-├── .env.example
-└── ARCHITECTURE.md
-```
+## 4. Reliability and Safety Design
 
-## 4. Database Schema
+- **Transactions**
+  - Write flows use DB session commit/rollback boundaries.
+  - Batch writes are atomic in ingestion and collection pipeline.
+- **Cache consistency**
+  - State-changing operations invalidate:
+    - `analysis:`
+    - `opportunities:`
+    - `recommendations:`
+- **Fault tolerance**
+  - Routers convert unexpected exceptions into safe `500` responses.
+  - LLM layer has fallback path to deterministic recommendation engine.
+- **Security baseline**
+  - API key required for write endpoints.
+  - Production startup checks enforce critical environment configuration.
 
-See `app/models/` for full SQLAlchemy definitions. Summary:
+## 5. API Surface (Core)
 
-| Table | Purpose |
-|-------|---------|
-| market_data | Raw ingested market data (sector, district, metrics, source) |
-| analysis_results | Cached market analysis outputs |
-| opportunities | Scored business opportunities |
-| recommendations | Aggregated recommendations with scores |
-
-All tables include: id (UUID), created_at, updated_at. Soft-delete via is_active where appropriate.
-
-### 8 Core REST API Endpoints
-
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| POST | /api/v1/data/ingest | Data ingestion (bulk) |
-| GET | /api/v1/data | List ingested data (paginated) |
-| POST | /api/v1/analysis/market | Run market analysis |
-| GET | /api/v1/analysis | List analysis results |
-| POST | /api/v1/opportunities/score | Score opportunities |
-| GET | /api/v1/opportunities | List opportunities |
-| GET | /api/v1/recommendations | Get top recommendations |
-| GET | /api/v1/health | Health check (DB + Redis) |
+- `POST /api/v1/data/ingest`
+- `GET /api/v1/data`
+- `POST /api/v1/analysis/market`
+- `GET /api/v1/analysis`
+- `POST /api/v1/opportunities/score`
+- `GET /api/v1/opportunities`
+- `GET /api/v1/recommendations`
+- `GET /api/v1/health`

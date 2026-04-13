@@ -21,46 +21,39 @@ class DataIngestionService:
 
     async def ingest(self, request: DataIngestRequest) -> tuple[int, int, list[UUID]]:
         """
-        Ingest market data items. Returns (ingested_count, failed_count, ids).
-        Invalidates analysis/opportunity cache on success.
+        Ingest market data items atomically. Returns (ingested_count, failed_count, ids).
+        Invalidates analysis/opportunity/recommendation caches on success.
         """
-        ingested = 0
-        failed = 0
-        ids: list[UUID] = []
+        records: list[MarketData] = []
         source = request.source_override
 
         for item in request.items:
-            try:
-                record = MarketData(
-                    sector=item.sector,
-                    district=item.district,
-                    metric_name=item.metric_name,
-                    metric_value=item.metric_value,
-                    unit=item.unit,
-                    year=item.year,
-                    quarter=item.quarter,
-                    source=source or item.source,
-                    raw_json=json.dumps(item.raw_json) if item.raw_json else None,
-                )
-                self.db.add(record)
-                await self.db.flush()
-                ids.append(record.id)
-                ingested += 1
-            except Exception as e:
-                logger.warning("Ingest item failed: %s", str(e))
-                failed += 1
-        # Invalidate caches if we successfully ingested any items.
-        if ingested > 0:
-            # Market analysis and opportunity scoring both depend on MarketData.
-            # It is safe and simple to invalidate all related cache entries.
-            try:
-                await cache_delete_prefix("analysis:")
-                await cache_delete_prefix("opportunities:")
-            except Exception as e:
-                # Cache invalidation failures should not break ingestion.
-                logger.debug("Cache invalidation failed after ingest: %s", str(e))
+            record = MarketData(
+                sector=item.sector,
+                district=item.district,
+                metric_name=item.metric_name,
+                metric_value=item.metric_value,
+                unit=item.unit,
+                year=item.year,
+                quarter=item.quarter,
+                source=source or item.source,
+                raw_json=json.dumps(item.raw_json) if item.raw_json else None,
+            )
+            records.append(record)
 
-        return ingested, failed, ids
+        self.db.add_all(records)
+        await self.db.flush()
+        ids = [r.id for r in records]
+
+        try:
+            await cache_delete_prefix("analysis:")
+            await cache_delete_prefix("opportunities:")
+            await cache_delete_prefix("recommendations:")
+        except Exception as e:
+            # Cache invalidation failures should not break successful writes.
+            logger.debug("Cache invalidation failed after ingest: %s", str(e))
+
+        return len(records), 0, ids
 
     async def list_data(
         self,

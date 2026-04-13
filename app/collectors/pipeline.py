@@ -68,33 +68,29 @@ class CollectionPipeline:
         if to_enrich:
             self._enrichment.enrich_batch(to_enrich)
 
-        ingested = 0
-        for item in unique:
-            try:
-                listing = BusinessListing(
-                    external_id=item["external_id"],
-                    source=item["source"],
-                    name=item["name"],
-                    category=item["category"],
-                    category_normalized=item.get("category_normalized"),
-                    address=item.get("address"),
-                    district=item.get("district"),
-                    district_mapped=item.get("district_mapped"),
-                    latitude=item.get("latitude"),
-                    longitude=item.get("longitude"),
-                    rating=item.get("rating"),
-                    review_count=item.get("review_count"),
-                    price_min=item.get("price_min"),
-                    price_max=item.get("price_max"),
-                    description=item.get("description"),
-                    sentiment_score=item.get("sentiment_score"),
-                    raw_json=item.get("raw"),
-                )
-                self.db.add(listing)
-                await self.db.flush()
-                ingested += 1
-            except Exception as e:
-                result.errors.append(f"persist {item.get('external_id')}: {str(e)}")
-
-        result.ingested = ingested
+        listings = [
+            BusinessListing(
+                external_id=item["external_id"],
+                source=item["source"],
+                name=item["name"],
+                category=item["category"],
+                category_normalized=item.get("category_normalized"),
+                address=item.get("address"),
+                district=item.get("district"),
+                district_mapped=item.get("district_mapped"),
+                latitude=item.get("latitude"),
+                longitude=item.get("longitude"),
+                rating=item.get("rating"),
+                review_count=item.get("review_count"),
+                price_min=item.get("price_min"),
+                price_max=item.get("price_max"),
+                description=item.get("description"),
+                sentiment_score=item.get("sentiment_score"),
+                raw_json=item.get("raw"),
+            )
+            for item in unique
+        ]
+        self.db.add_all(listings)
+        await self.db.flush()
+        result.ingested = len(listings)
         return result
