@@ -77,6 +77,7 @@ class Settings(BaseSettings):
 
     # Data collection
     google_maps_api_key: Optional[str] = None
+    twogis_api_key: Optional[str] = None
     collection_default_limit: int = 100
 
     # LLM (OpenAI)

@@ -6,6 +6,7 @@ from app.models.business_listing import BusinessListing
 from app.models.analysis_result import AnalysisResult
 from app.models.opportunity import Opportunity
 from app.models.recommendation import Recommendation
+from app.models.market_snapshot import MarketSnapshot
 
 __all__ = [
     "TimestampMixin",
@@ -15,4 +16,5 @@ __all__ = [
     "AnalysisResult",
     "Opportunity",
     "Recommendation",
+    "MarketSnapshot",
 ]

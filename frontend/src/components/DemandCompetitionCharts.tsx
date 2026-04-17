@@ -1,92 +1,144 @@
 import {
   ResponsiveContainer,
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   Tooltip,
-  BarChart,
-  Bar,
   Legend,
-  CartesianGrid
+  CartesianGrid,
+  Cell,
 } from "recharts";
 import type { AnalysisSummary } from "./AnalysisSummaryCards";
+import type { DistrictChartRow } from "../store/dashboardStore";
 
 interface Props {
   loading: boolean;
   summary: AnalysisSummary | null;
+  districtChartData: DistrictChartRow[];
 }
 
-const sampleTrend = Array.from({ length: 6 }).map((_, idx) => ({
-  label: `T${idx + 1}`,
-  demand: 0.4 + idx * 0.06,
-  competition: 0.7 - idx * 0.05
-}));
+const SCORE_COLORS = ["#8b5cf6", "#7c3aed", "#6d28d9", "#5b21b6", "#4c1d95", "#3b0764", "#a78bfa", "#c4b5fd"];
 
-const sampleDistricts = [
-  { district: "Bostandyk", demand: 0.8, competition: 0.5 },
-  { district: "Almaly", demand: 0.7, competition: 0.6 },
-  { district: "Medey", demand: 0.6, competition: 0.4 }
-];
+function EmptyState({ text }: { text: string }) {
+  return (
+    <div className="flex h-full items-center justify-center text-xs text-slate-600">{text}</div>
+  );
+}
 
-function DemandCompetitionCharts({ loading }: Props) {
-  const trendData = loading ? sampleTrend : sampleTrend;
-  const districtData = loading ? sampleDistricts : sampleDistricts;
+function DemandCompetitionCharts({ loading, districtChartData }: Props) {
+  const hasData = districtChartData.length > 0;
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-        <h3 className="text-sm font-medium text-slate-100">
-          Demand vs competition trend
-        </h3>
-        <p className="text-xs text-slate-400">
-          Illustrative moving average of demand and competition over time.
-        </p>
-        <div className="mt-3 h-56">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={trendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-              <XAxis dataKey="label" stroke="#64748b" />
-              <YAxis domain={[0, 1]} stroke="#64748b" />
-              <Tooltip contentStyle={{ backgroundColor: "#020617", borderColor: "#1e293b" }} />
-              <Legend />
-              <Line
-                type="monotone"
-                dataKey="demand"
-                name="Demand"
-                stroke="#22c55e"
-                strokeWidth={2}
-                dot={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="competition"
-                name="Competition"
-                stroke="#f97316"
-                strokeWidth={2}
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+      <div className="card p-5">
+        <div className="mb-4">
+          <h3 className="font-semibold text-slate-100">Спрос и конкуренция по районам</h3>
+          <p className="text-xs text-slate-500 mt-0.5">На основе проведённых анализов</p>
+        </div>
+        <div className="h-60">
+          {loading ? (
+            <div className="h-full animate-pulse rounded-xl bg-slate-800/40" />
+          ) : !hasData ? (
+            <EmptyState text="Запустите анализ по нескольким районам, чтобы увидеть данные" />
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={districtChartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis
+                  dataKey="district"
+                  stroke="#475569"
+                  tick={{ fontSize: 11, fill: "#94a3b8" }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  domain={[0, 1]}
+                  stroke="#475569"
+                  tick={{ fontSize: 11, fill: "#64748b" }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v) => `${Math.round(v * 100)}%`}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#0f172a",
+                    borderColor: "#1e293b",
+                    borderRadius: "12px",
+                    fontSize: 12,
+                    boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
+                  }}
+                  formatter={(v: number, name: string) => [
+                    `${Math.round(v * 100)}%`,
+                    name === "demand" ? "Спрос" : "Конкуренция",
+                  ]}
+                />
+                <Legend
+                  formatter={(v) => (v === "demand" ? "Спрос" : "Конкуренция")}
+                  wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                />
+                <Bar dataKey="demand" name="demand" fill="#10b981" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="competition" name="competition" fill="#f97316" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-        <h3 className="text-sm font-medium text-slate-100">
-          District demand vs competition
-        </h3>
-        <div className="mt-3 h-56">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={districtData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-              <XAxis dataKey="district" stroke="#64748b" />
-              <YAxis domain={[0, 1]} stroke="#64748b" />
-              <Tooltip contentStyle={{ backgroundColor: "#020617", borderColor: "#1e293b" }} />
-              <Legend />
-              <Bar dataKey="demand" name="Demand" fill="#22c55e" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="competition" name="Competition" fill="#f97316" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+      <div className="card p-5">
+        <div className="mb-4">
+          <h3 className="font-semibold text-slate-100">Итоговый балл по районам</h3>
+          <p className="text-xs text-slate-500 mt-0.5">Чем выше — тем выгоднее входить</p>
+        </div>
+        <div className="h-44">
+          {loading ? (
+            <div className="h-full animate-pulse rounded-xl bg-slate-800/40" />
+          ) : !hasData ? (
+            <EmptyState text="Нет данных" />
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={districtChartData}
+                layout="vertical"
+                margin={{ top: 0, right: 16, left: 8, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" horizontal={false} />
+                <XAxis
+                  type="number"
+                  domain={[0, 1]}
+                  stroke="#475569"
+                  tick={{ fontSize: 11, fill: "#64748b" }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v) => `${Math.round(v * 100)}`}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="district"
+                  stroke="#475569"
+                  tick={{ fontSize: 11, fill: "#94a3b8" }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={72}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#0f172a",
+                    borderColor: "#1e293b",
+                    borderRadius: "12px",
+                    fontSize: 12,
+                    boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
+                  }}
+                  formatter={(v: number) => [`${Math.round(v * 100)}`, "Балл"]}
+                />
+                <Bar dataKey="score" name="score" radius={[0, 6, 6, 0]}>
+                  {districtChartData.map((_, i) => (
+                    <Cell key={i} fill={SCORE_COLORS[i % SCORE_COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
     </div>
@@ -94,4 +146,3 @@ function DemandCompetitionCharts({ loading }: Props) {
 }
 
 export default DemandCompetitionCharts;
-

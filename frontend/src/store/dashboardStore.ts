@@ -4,20 +4,55 @@ import {
   fetchAnalyses,
   fetchHealth,
   fetchOpportunities,
+  fetchStats,
   runMarketAnalysis,
-  type Opportunity as ApiOpportunity
+  triggerCollection,
+  type Opportunity as ApiOpportunity,
+  type AnalysisResult,
+  type AnalysisItem,
 } from "../services/api";
 import type { AnalysisSummary } from "../components/AnalysisSummaryCards";
 import type { OpportunityItem } from "../components/OpportunityList";
+
+export interface DistrictChartRow {
+  district: string;
+  demand: number;
+  competition: number;
+  score: number;
+}
 
 interface DashboardState {
   loadingOverview: boolean;
   overviewError: string | null;
   analysisSummary: AnalysisSummary | null;
   opportunities: OpportunityItem[];
+  districtChartData: DistrictChartRow[];
+  lastAnalysis: AnalysisResult | null;
+  analysisError: string | null;
+  collecting: boolean;
+  collectMessage: string | null;
 
   loadOverview: () => Promise<void>;
   runAnalysis: (payload: { sector?: string | null; district?: string | null }) => Promise<void>;
+  collectData: () => Promise<void>;
+}
+
+function buildDistrictChart(analyses: AnalysisItem[]): DistrictChartRow[] {
+  const seen = new Map<string, DistrictChartRow>();
+  for (const item of analyses) {
+    const ins = (item as AnalysisResult).insights;
+    const district = ins?.target_district ?? (item as AnalysisResult).district;
+    if (!district || district === "all" || seen.has(district)) continue;
+    const demand = ins?.demand_score ?? 0;
+    const gap = ins?.gap_score ?? 0;
+    seen.set(district, {
+      district,
+      demand: Math.round(demand * 100) / 100,
+      competition: Math.round((1 - gap) * 100) / 100,
+      score: Math.round(((item as AnalysisResult).score ?? 0) * 100) / 100,
+    });
+  }
+  return Array.from(seen.values()).slice(0, 8);
 }
 
 export const useDashboardStore = create<DashboardState>()(
@@ -27,22 +62,34 @@ export const useDashboardStore = create<DashboardState>()(
       overviewError: null,
       analysisSummary: null,
       opportunities: [],
+      districtChartData: [],
+      lastAnalysis: null,
+      analysisError: null,
+      collecting: false,
+      collectMessage: null,
 
       async loadOverview() {
         set({ loadingOverview: true, overviewError: null });
         try {
           await fetchHealth();
-          const [analyses, ops] = await Promise.all([
+          const [analyses, ops, stats] = await Promise.all([
             fetchAnalyses(),
-            fetchOpportunities()
+            fetchOpportunities(),
+            fetchStats(),
           ]);
 
+          const districtChartData = buildDistrictChart(analyses);
+
+          const topByScore = [...(analyses as AnalysisResult[])]
+            .filter((a) => a.score != null)
+            .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
           const summary: AnalysisSummary = {
-            totalListings: ops.length,
+            totalListings: stats.total_listings,
             avgRating: 4.2,
             avgSentiment: 0.6,
-            topDistrict: ops[0]?.district ?? undefined,
-            topSector: ops[0]?.sector ?? undefined
+            topDistrict: topByScore[0]?.insights?.target_district ?? ops[0]?.district ?? undefined,
+            topSector: topByScore[0]?.sector ?? ops[0]?.sector ?? undefined,
           };
 
           const mappedOps: OpportunityItem[] = (ops as ApiOpportunity[]).map((o) => ({
@@ -50,24 +97,16 @@ export const useDashboardStore = create<DashboardState>()(
             name: o.name,
             district: o.district ?? "Unknown",
             sector: o.sector ?? "General",
-            score: o.score
+            score: o.score,
           }));
 
-          if (analyses.length === 0 && ops.length === 0) {
-            set({
-              analysisSummary: summary,
-              opportunities: mappedOps,
-              loadingOverview: false,
-              overviewError: null
-            });
-          } else {
-            set({
-              analysisSummary: summary,
-              opportunities: mappedOps,
-              loadingOverview: false,
-              overviewError: null
-            });
-          }
+          set({
+            analysisSummary: summary,
+            opportunities: mappedOps,
+            districtChartData,
+            loadingOverview: false,
+            overviewError: null,
+          });
         } catch (err) {
           const message = err instanceof Error ? err.message : "Failed to load overview.";
           set({ loadingOverview: false, overviewError: message });
@@ -75,10 +114,29 @@ export const useDashboardStore = create<DashboardState>()(
       },
 
       async runAnalysis(payload) {
-        await runMarketAnalysis(payload);
-      }
+        set({ analysisError: null });
+        try {
+          const result = await runMarketAnalysis(payload);
+          set({ lastAnalysis: result });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Analysis failed.";
+          set({ analysisError: message });
+        }
+      },
+
+      async collectData() {
+        set({ collecting: true, collectMessage: null });
+        try {
+          const res = await triggerCollection();
+          set({ collectMessage: res.message });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Collection failed.";
+          set({ collectMessage: message });
+        } finally {
+          set({ collecting: false });
+        }
+      },
     }),
     { name: "dashboard-store" }
   )
 );
-

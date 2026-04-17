@@ -46,10 +46,26 @@ class MarketAnalysisEngine:
             len(listings),
         )
 
+        SECTOR_RU = {
+            "food_service": "общепит", "retail": "ритейл", "services": "услуги",
+            "health": "здоровье и медицина", "beauty": "красота и уход",
+            "fitness": "фитнес и спорт", "education": "образование",
+            "vehicles": "авто", "electronics": "электроника",
+            "clothing": "одежда и обувь", "real_estate": "недвижимость",
+            "other": "другое", "all": "все секторы",
+        }
+        DISTRICT_RU = {
+            "Bostandyq": "Бостандык", "Almaly": "Алмалы", "Medeu": "Медеу",
+            "Auezov": "Ауэзов", "Alatau": "Алатау", "Turksib": "Түрксіб",
+            "Zhetysu": "Жетісу", "Nauryzbay": "Наурызбай", "all": "все районы",
+        }
+        sector_label = SECTOR_RU.get(sector or "all", sector or "все секторы")
+        district_label = DISTRICT_RU.get(district or "all", district or "все районы")
+
         if not listings:
             summary = (
-                f"No enriched business listings available for sector={sector or 'all'}, "
-                f"district={district or 'all'}."
+                f"По сектору «{sector_label}» в районе «{district_label}» "
+                f"данных пока недостаточно для полноценного анализа."
             )
             return {
                 "summary": summary,
@@ -103,9 +119,12 @@ class MarketAnalysisEngine:
         # Combine into overall score (simple blend of demand and gap).
         score = max(0.0, min(1.0, (demand_score + gap_score) / 2.0))
 
+        competition_level = "высокая" if gap_score < 0.2 else "средняя" if gap_score < 0.5 else "низкая"
+        demand_level = "высокий" if demand_score > 0.65 else "средний" if demand_score > 0.4 else "низкий"
         summary = (
-            f"Analysis for sector={sector or 'all'}, district={district or 'all'} "
-            f"based on {len(listings)} enriched business listings in Almaty."
+            f"Сектор «{sector_label}», район «{district_label}». "
+            f"Проанализировано {len(listings)} заведений. "
+            f"Спрос — {demand_level}, конкуренция — {competition_level}."
         )
         insights: dict[str, Any] = {
             "demand_score": demand_score,

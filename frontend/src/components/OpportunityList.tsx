@@ -1,4 +1,5 @@
-import { SparklesIcon } from "@heroicons/react/24/outline";
+import { BoltIcon } from "@heroicons/react/24/solid";
+import { MapPinIcon } from "@heroicons/react/24/outline";
 
 export interface OpportunityItem {
   id: string;
@@ -13,43 +14,68 @@ interface Props {
   opportunities: OpportunityItem[];
 }
 
+const SECTOR_RU: Record<string, string> = {
+  food_service: "Общепит",
+  retail: "Ритейл",
+  services: "Услуги",
+  health: "Здоровье",
+  beauty: "Красота",
+  fitness: "Фитнес",
+  education: "Образование",
+  other: "Другое",
+  general: "Общее",
+};
+
+function scoreColor(score: number) {
+  if (score >= 0.6) return "bg-accent-500/15 text-accent-400 ring-1 ring-accent-500/20";
+  if (score >= 0.35) return "bg-yellow-500/15 text-yellow-400 ring-1 ring-yellow-500/20";
+  return "bg-red-500/15 text-red-400 ring-1 ring-red-500/20";
+}
+
 function OpportunityList({ loading, opportunities }: Props) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-slate-100">
-          Top opportunities
-        </h3>
-        <SparklesIcon className="h-5 w-5 text-primary-500" />
+    <div className="card p-5 h-full">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="font-semibold text-slate-100">Возможности</h3>
+          <p className="text-xs text-slate-500 mt-0.5">По спросу и конкуренции</p>
+        </div>
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-600/15">
+          <BoltIcon className="h-4 w-4 text-primary-400" />
+        </div>
       </div>
-      <p className="mt-1 text-xs text-slate-400">
-        Ranked by demand, competition, and sentiment.
-      </p>
-      <div className="mt-3 space-y-2">
-        {loading && (
-          <div className="text-xs text-slate-500">Loading opportunities…</div>
-        )}
+
+      <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
+        {loading && Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-14 animate-pulse rounded-xl bg-slate-800/60" />
+        ))}
+
         {!loading && opportunities.length === 0 && (
-          <div className="text-xs text-slate-500">
-            No opportunities yet. Run a market analysis first.
+          <div className="flex flex-col items-center py-8 text-center">
+            <BoltIcon className="h-8 w-8 text-slate-700 mb-2" />
+            <p className="text-sm text-slate-500">Нет данных</p>
+            <p className="text-xs text-slate-600 mt-1">Запустите анализ рынка</p>
           </div>
         )}
+
         {opportunities.map((o) => (
           <div
             key={o.id}
-            className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs"
+            className="group rounded-xl border border-slate-800/60 bg-slate-900/40 px-3.5 py-3
+                       transition-all hover:border-slate-700 hover:bg-slate-800/40"
           >
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-slate-100 truncate">
-                {o.name}
-              </span>
-              <span className="rounded-full bg-primary-500/10 px-2 py-0.5 text-[10px] font-semibold text-primary-400">
-                {(o.score * 100).toFixed(0)}
+            <div className="flex items-center justify-between gap-2">
+              <span className="truncate text-sm font-medium text-slate-200">{o.name}</span>
+              <span className={`badge shrink-0 ${scoreColor(o.score)}`}>
+                {Math.round(o.score * 100)}
               </span>
             </div>
-            <div className="mt-1 flex justify-between text-[11px] text-slate-400">
-              <span>{o.district}</span>
-              <span>{o.sector}</span>
+            <div className="mt-1.5 flex items-center gap-3 text-xs text-slate-500">
+              <span className="flex items-center gap-1">
+                <MapPinIcon className="h-3 w-3" />
+                {o.district}
+              </span>
+              <span>{SECTOR_RU[o.sector] ?? o.sector}</span>
             </div>
           </div>
         ))}
@@ -59,4 +85,3 @@ function OpportunityList({ loading, opportunities }: Props) {
 }
 
 export default OpportunityList;
-

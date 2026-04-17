@@ -11,6 +11,9 @@ from app.config import get_settings
 from app.exceptions import AppException, app_exception_handler, validation_exception_handler, generic_exception_handler
 from app.logging_config import setup_logging, get_logger
 from app.routers import data, analysis, opportunities, recommendations, health
+from app.routers import trends, demographics
+from app.routers import collect
+from app.routers import competitors
 
 settings = get_settings()
 setup_logging(level="DEBUG" if settings.debug else "INFO")
@@ -62,6 +65,10 @@ app.include_router(data.router, prefix=settings.api_v1_prefix)
 app.include_router(analysis.router, prefix=settings.api_v1_prefix)
 app.include_router(opportunities.router, prefix=settings.api_v1_prefix)
 app.include_router(recommendations.router, prefix=settings.api_v1_prefix)
+app.include_router(trends.router, prefix=settings.api_v1_prefix)
+app.include_router(demographics.router, prefix=settings.api_v1_prefix)
+app.include_router(collect.router, prefix=settings.api_v1_prefix)
+app.include_router(competitors.router, prefix=settings.api_v1_prefix)
 
 
 @app.get("/")

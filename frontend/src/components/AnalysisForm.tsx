@@ -1,88 +1,104 @@
 import { FormEvent, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
+import { MagnifyingGlassIcon, AdjustmentsHorizontalIcon } from "@heroicons/react/24/outline";
 
 interface Props {
-  onAnalyzed?: () => void;
+  onAnalyzed?: (sector: string, district: string | null) => void;
 }
+
+const SECTORS = [
+  { value: "food_service", label: "Общепит" },
+  { value: "retail",       label: "Ритейл" },
+  { value: "services",     label: "Услуги" },
+  { value: "health",       label: "Здоровье и медицина" },
+  { value: "beauty",       label: "Красота и уход" },
+  { value: "fitness",      label: "Фитнес и спорт" },
+  { value: "education",    label: "Образование" },
+  { value: "other",        label: "Другое" },
+];
+
+const DISTRICTS = [
+  { value: "All",       label: "Все районы" },
+  { value: "Bostandyq", label: "Бостандык" },
+  { value: "Almaly",    label: "Алмалы" },
+  { value: "Medeu",     label: "Медеу" },
+  { value: "Auezov",    label: "Ауэзов" },
+  { value: "Alatau",    label: "Алатау" },
+  { value: "Turksib",   label: "Түрксіб" },
+  { value: "Zhetysu",   label: "Жетісу" },
+  { value: "Nauryzbay", label: "Наурызбай" },
+];
 
 function AnalysisForm({ onAnalyzed }: Props) {
   const [sector, setSector] = useState("food_service");
   const [district, setDistrict] = useState("All");
   const [submitting, setSubmitting] = useState(false);
   const runAnalysis = useDashboardStore((s) => s.runAnalysis);
+  const analysisError = useDashboardStore((s) => s.analysisError);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await runAnalysis({ sector, district: district === "All" ? null : district });
-      onAnalyzed?.();
+      const d = district === "All" ? null : district;
+      await runAnalysis({ sector, district: d });
+      onAnalyzed?.(sector, d);
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/60 p-4"
-    >
+    <form onSubmit={handleSubmit} className="card p-6 space-y-5">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-600/20 ring-1 ring-primary-500/30">
+          <AdjustmentsHorizontalIcon className="h-5 w-5 text-primary-400" />
+        </div>
+        <div>
+          <h2 className="font-semibold text-slate-100">Параметры анализа</h2>
+          <p className="text-xs text-slate-500">Выберите сектор и район</p>
+        </div>
+      </div>
+
       <div>
-        <h2 className="text-sm font-semibold text-slate-100">
-          Run market analysis
-        </h2>
-        <p className="mt-1 text-xs text-slate-400">
-          Choose sector and district to analyze demand, competition, and
-          opportunities in Almaty.
-        </p>
-      </div>
-
-      <div className="space-y-1">
-        <label className="text-xs font-medium text-slate-300">
-          Sector
-        </label>
-        <select
-          className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-primary-500 focus:outline-none"
-          value={sector}
-          onChange={(e) => setSector(e.target.value)}
-        >
-          <option value="food_service">Food service</option>
-          <option value="retail">Retail</option>
-          <option value="services">Services</option>
-          <option value="health_beauty">Health & beauty</option>
-          <option value="education">Education</option>
-          <option value="other">Other</option>
+        <label className="label">Сектор бизнеса</label>
+        <select className="input" value={sector} onChange={(e) => setSector(e.target.value)}>
+          {SECTORS.map((s) => (
+            <option key={s.value} value={s.value}>{s.label}</option>
+          ))}
         </select>
       </div>
 
-      <div className="space-y-1">
-        <label className="text-xs font-medium text-slate-300">
-          District
-        </label>
-        <select
-          className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-primary-500 focus:outline-none"
-          value={district}
-          onChange={(e) => setDistrict(e.target.value)}
-        >
-          <option value="All">All districts</option>
-          <option value="Bostandyk">Bostandyk</option>
-          <option value="Almaly">Almaly</option>
-          <option value="Medey">Medey</option>
-          <option value="Auezov">Auezov</option>
-          <option value="Turksib">Turksib</option>
+      <div>
+        <label className="label">Район Алматы</label>
+        <select className="input" value={district} onChange={(e) => setDistrict(e.target.value)}>
+          {DISTRICTS.map((d) => (
+            <option key={d.value} value={d.value}>{d.label}</option>
+          ))}
         </select>
       </div>
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="inline-flex w-full items-center justify-center rounded-md bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {submitting ? "Analyzing…" : "Run analysis"}
+      {analysisError && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/8 px-4 py-3 text-xs text-red-300">
+          {analysisError}
+        </div>
+      )}
+
+      <button type="submit" disabled={submitting} className="btn-primary w-full">
+        {submitting ? (
+          <>
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            Анализирую…
+          </>
+        ) : (
+          <>
+            <MagnifyingGlassIcon className="h-4 w-4" />
+            Запустить анализ
+          </>
+        )}
       </button>
     </form>
   );
 }
 
 export default AnalysisForm;
-

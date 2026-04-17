@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.collectors.base import BaseCollector, CollectResult
@@ -54,6 +55,21 @@ class CollectionPipeline:
 
         unique, dups = detect_duplicates(valid)
         result.duplicates = len(dups)
+
+        # Filter out external_ids already in the database
+        if unique:
+            ext_ids = [item["external_id"] for item in unique]
+            existing = (
+                await self.db.execute(
+                    select(BusinessListing.external_id).where(
+                        BusinessListing.external_id.in_(ext_ids)
+                    )
+                )
+            ).scalars().all()
+            existing_set = set(existing)
+            before = len(unique)
+            unique = [item for item in unique if item["external_id"] not in existing_set]
+            result.duplicates += before - len(unique)
 
         # Enrich unique listings (idempotent, skip items that already have enriched fields)
         to_enrich: list[dict[str, Any]] = []
